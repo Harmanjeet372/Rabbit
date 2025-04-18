@@ -1,46 +1,45 @@
-const mongoose = require("mongoose");
-const bcrypt = require("bcryptjs");
+const { DataTypes } = require("sequelize");
+const bcrypt = require("bcryptjs"); // Import bcrypt for hashing and comparing passwords
+const sequelize = require("../config/db"); // Make sure this points to your sequelize instance
 
-const userSchema = new mongoose.Schema(
-    {
-        name: {
-            type: String,
-            required: true,
-            trim: true,
-        },
-        email: {
-            type: String,
-            required: true,
-            unique: true,
-            trim: true,
-            match: [/^[^\s@]+@[^\s@]+\.[^\s@]+$/, "Please enter a valid email address"]
-        },
-        password: {
-            type: String,
-            required: true,
-            minlength: 6,  
-        },
-        role: {
-            type: String,
-            enum: ["customer", "admin"],
-            default: "customer",
-        },
-    },
-    { timestamps: true }
-);
-
-// Hash the password before saving it to the database
-userSchema.pre("save", async function (next) {
-    if (!this.isModified("password")) return next(); // Skip if password is not modified
-
-    const salt = await bcrypt.genSalt(10); // More salt = more security
-    this.password = await bcrypt.hash(this.password, salt);
-    next();
+const User = sequelize.define("User", {
+  name: {
+    type: DataTypes.STRING,
+    allowNull: false,
+  },
+  email: {
+    type: DataTypes.STRING,
+    allowNull: false,
+    unique: true,
+  },
+  password: {
+    type: DataTypes.STRING,
+    allowNull: false,
+  },
+  role: {
+    type: DataTypes.STRING,
+    defaultValue: "customer",
+  },
+}, {
+  timestamps: false, // Disable automatic createdAt and updatedAt fields
 });
 
-// Compare entered password with hashed password
-userSchema.methods.matchPassword = async function (enteredPassword) {
-    return await bcrypt.compare(enteredPassword, this.password);
+// Add a method to compare the password (this is the matchPassword method)
+User.prototype.matchPassword = async function (enteredPassword) {
+  return await bcrypt.compare(enteredPassword, this.password);
 };
 
-module.exports = mongoose.model("User", userSchema);
+// Hash the password before saving a new user or updating it
+User.beforeCreate(async (user) => {
+  if (user.password) {
+    user.password = await bcrypt.hash(user.password, 10);
+  }
+});
+
+User.beforeUpdate(async (user) => {
+  if (user.password) {
+    user.password = await bcrypt.hash(user.password, 10);
+  }
+});
+
+module.exports = User;
